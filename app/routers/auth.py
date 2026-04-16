@@ -6,7 +6,7 @@ from app.database import get_db
 from app.models.user import User
 from app.models.cart import Cart
 from app.schemas.user import UserCreate, UserResponse
-from app.schemas.auth import Token
+from app.services.auth import Token
 from app.core.security import hash_password, verify_password, create_access_token
 from app.core.dependencies import get_current_user
 

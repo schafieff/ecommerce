@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List, Optional
 from app.database import get_db
+from app.models.user import User
 from app.models.product import Product, Category
 from app.schemas.product import (
     ProductCreate, ProductUpdate, ProductResponse,
