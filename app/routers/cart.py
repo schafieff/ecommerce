@@ -7,9 +7,25 @@ from app.models.cart import Cart, CartItem
 from app.models.product import Product
 from app.schemas.cart import CartItemCreate, CartItemUpdate, CartResponse
 from app.core.dependencies import get_current_user
+from sqlalchemy.orm import selectinload
+
 
 router = APIRouter()
 
+async def get_cart_with_items(user_id: int, db: AsyncSession) -> Cart:
+    """
+    Explicitly loads cart → items → products in one query chain.
+    Avoids lazy load errors during response serialization.
+    """
+    result = await db.execute(
+        select(Cart)
+        .where(Cart.user_id == user_id)
+        .options(
+            selectinload(Cart.items)
+            .selectinload(CartItem.product)
+        )
+    )
+    return result.scalar_one_or_none()
 
 @router.get("", response_model=CartResponse)
 async def get_cart(
@@ -28,8 +44,7 @@ async def get_cart(
     result = await db.execute(
         select(Cart).where(Cart.user_id == current_user.id)
     )
-    cart = result.scalar_one_or_none()
-
+    cart = await get_cart_with_items(current_user.id, db)
     if not cart:
         raise HTTPException(status_code=404, detail="Cart not found")
 
@@ -74,7 +89,7 @@ async def add_to_cart(
     cart_result = await db.execute(
         select(Cart).where(Cart.user_id == current_user.id)
     )
-    cart = cart_result.scalar_one_or_none()
+    cart = await get_cart_with_items(current_user.id, db)
 
     # Check if already in cart — upsert logic
     existing_item_result = await db.execute(
@@ -96,8 +111,7 @@ async def add_to_cart(
         db.add(new_item)
 
     await db.flush()
-    await db.refresh(cart)
-    return cart
+    return await get_cart_with_items(current_user.id, db)
 
 
 @router.patch("/items/{item_id}", response_model=CartResponse)
@@ -123,14 +137,8 @@ async def update_cart_item(
     if not item:
         raise HTTPException(status_code=404, detail="Cart item not found")
 
-    item.quantity = item_data.quantity
+    return await get_cart_with_items(current_user.id, db)
 
-    cart_result = await db.execute(
-        select(Cart).where(Cart.user_id == current_user.id)
-    )
-    cart = cart_result.scalar_one_or_none()
-    await db.refresh(cart)
-    return cart
 
 
 @router.delete("/items/{item_id}", status_code=204)
